@@ -3,7 +3,7 @@ A golang lib for writing serf event generators and handlers.
 
 ## Goal
 - Have a more formal (verifiable) way of defining and generating serf events in **Go**!
-- eliminate some/most boilerplate code for getting a serf event handler logic ready
+- eliminate some/most boilerplate code for getting a serf event handler logic ready in **Go**!
 
 ## Status
 Being  implementated
