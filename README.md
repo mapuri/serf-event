@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/mapuri/serf-event.svg?branch=master)](https://travis-ci.org/mapuri/serf-event)
+
 # serf-event
 A golang lib for writing serf event generators and handlers.
 
