@@ -1,0 +1,37 @@
+{
+	"ImportPath": "github.com/mapuri/serf-event",
+	"GoVersion": "go1.4.2",
+	"Deps": [
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v0.7.3-13-g81e2611",
+			"Rev": "81e2611f37acccd8cb5e4e1a5a4a5f6c9c7f4537"
+		},
+		{
+			"ImportPath": "github.com/armon/go-metrics",
+			"Rev": "b2d95e5291cdbc26997d1301a5e467ecbb240e25"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/go-msgpack/codec",
+			"Rev": "fa3f63826f7c23912c15263591e65d54d080b458"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/logutils",
+			"Rev": "0dc08b1671f34c4250ce212759ebd880f743d883"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/memberlist",
+			"Rev": "3636f9694d601b5f68da11676d59cdf8a4c9dfe3"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/serf/client",
+			"Comment": "v0.6.4-23-g932865c",
+			"Rev": "932865ce77ba6ab0ebf5978040f8b23825762d44"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/serf/serf",
+			"Comment": "v0.6.4-23-g932865c",
+			"Rev": "932865ce77ba6ab0ebf5978040f8b23825762d44"
+		}
+	]
+}
