@@ -2,6 +2,7 @@ package serf_event
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -54,13 +55,23 @@ func (r *Router) AddQueryResponder(name string, f ResponderFunc) {
 }
 
 func (r *Router) findHandlerFunc(name string) interface{} {
+	var sortedKeys []string
+
 	// try for exact match first
 	if f, ok := r.handlers[name]; ok {
 		return f
 	}
 
-	// else try in one of sub-routers
-	for p, sr := range r.subRouters {
+	// else try in one of sub-routers.
+	// Note: to perform longest prefix match, sort the keys in reverse order and
+	// pick the first key with prefix overlap.
+	for key := range r.subRouters {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(sortedKeys)))
+
+	for _, p := range sortedKeys {
+		sr := r.subRouters[p]
 		if strings.HasPrefix(name, p) {
 			if f := sr.findHandlerFunc(name[len(p):]); f != nil {
 				return f
