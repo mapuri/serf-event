@@ -10,12 +10,14 @@ checks: deps check-format check-code unit-test
 	
 check-format:
 	@echo "checking format..."
-	test -z "$(golint . | grep -v Godeps/_workspace/src/)"
+	test -z "$$(gofmt -l . | grep -v Godeps/_workspace/src/ | tee /dev/stderr)"
+	@echo "done checking format..."
 
 check-code:
-	@echo "checking lint..."
-	test -z "$(golint ./...)"
+	@echo "checking code..."
+	test -z "$$(golint ./... | tee /dev/stderr)"
 	go vet ./...
+	@echo "done checking code..."
 
 unit-test:
 	godep go test -v ./...

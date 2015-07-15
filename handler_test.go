@@ -1,4 +1,4 @@
-package serf_event
+package serfer
 
 import "testing"
 

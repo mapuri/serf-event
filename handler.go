@@ -1,23 +1,34 @@
-package serf_event
+package serfer
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/hashicorp/serf/client"
 )
 
+// HandlerFunc is a function type to handle registered serf events
 type HandlerFunc func(name string, payload []byte) error
+
+// ResponderFunc is a function type to respond to registered serf queries
 type ResponderFunc func(name string, request []byte) ([]byte, error)
 
+// Router implements a serf event/query router. It provides for ease of
+// registering structured event/query names by using sub-routers. The names
+// are first looked against the immediate router for an exact match and then
+// matched in sub-routers (picking the sub-router with longest prefix matched
+// in case of overlapping prefixes).
 type Router struct {
+	sync.Mutex
 	prefix     string
 	handlers   map[string]interface{}
 	subRouters map[string]*Router
 }
 
+// NewRouter instantiates an instance of main router.
 func NewRouter() *Router {
 	return &Router{
 		handlers:   make(map[string]interface{}),
@@ -25,33 +36,46 @@ func NewRouter() *Router {
 	}
 }
 
+// NewSubRouter instantiates an instance of a sub-router under a router and
+// associates it with the specified prefix.
 func (r *Router) NewSubRouter(prefix string) *Router {
 	var sr *Router
 
 	sr = NewRouter()
 	sr.prefix = prefix
+	r.Lock()
 	r.subRouters[prefix] = sr
+	r.Unlock()
 	return sr
 }
 
+// AddHandler registers a handler for the specified event
 func (r *Router) AddHandler(name string, f HandlerFunc) {
+	r.Lock()
 	r.handlers[name] = f
+	r.Unlock()
 }
 
+// AddMemberJoinHandler registers a handler for serf's member-join event
 func (r *Router) AddMemberJoinHandler(f HandlerFunc) {
-	r.handlers["member-join"] = f
+	r.AddHandler("member-join", f)
 }
 
+// AddMemberLeaveHandler registers a handler for serf's member-leave event
 func (r *Router) AddMemberLeaveHandler(f HandlerFunc) {
-	r.handlers["member-leave"] = f
+	r.AddHandler("member-leave", f)
 }
 
+// AddMemberFailedHandler registers a handler for serf's member-failed event
 func (r *Router) AddMemberFailedHandler(f HandlerFunc) {
-	r.handlers["member-failed"] = f
+	r.AddHandler("member-failed", f)
 }
 
-func (r *Router) AddQueryResponder(name string, f ResponderFunc) {
+// AddResponder registers a responder for the specified query
+func (r *Router) AddResponder(name string, f ResponderFunc) {
+	r.Lock()
 	r.handlers[name] = f
+	r.Unlock()
 }
 
 func (r *Router) findHandlerFunc(name string) interface{} {
@@ -83,6 +107,8 @@ func (r *Router) findHandlerFunc(name string) interface{} {
 }
 
 func (r *Router) handleEvent(event map[string]interface{}) {
+	r.Lock()
+	defer r.Unlock()
 	var (
 		name        string
 		payload     []byte
@@ -109,6 +135,8 @@ func (r *Router) handleEvent(event map[string]interface{}) {
 }
 
 func (r *Router) handleQuery(serfClient *client.RPCClient, query map[string]interface{}) {
+	r.Lock()
+	defer r.Unlock()
 	var (
 		name        string
 		payload     []byte
@@ -164,6 +192,9 @@ func (r *Router) serve(serfClient *client.RPCClient) error {
 	return fmt.Errorf("Unexpected code path!")
 }
 
+// InitSerfAndServe initializes a serf client for agent running at specified
+// IP address and enters the event/query serving loop.
+// If an empty IP address the the client tries to reach the agent at 127.0.0.1 address
 func (r *Router) InitSerfAndServe(addr string) error {
 	var (
 		c   *client.RPCClient
@@ -176,6 +207,8 @@ func (r *Router) InitSerfAndServe(addr string) error {
 	return r.serve(c)
 }
 
+// InitSerfFromConfigAndServe initializes a serf client with specified serf's
+// client configuration and enters the event/query serving loop.
 func (r *Router) InitSerfFromConfigAndServe(serfConfig *client.Config) error {
 	var (
 		c   *client.RPCClient
