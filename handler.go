@@ -7,14 +7,15 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/hashicorp/serf/client"
+	"github.com/hashicorp/serf/command/agent"
+	"github.com/mapuri/serf/client"
 )
 
 // HandlerFunc is a function type to handle registered serf events
-type HandlerFunc func(name string, payload []byte) error
+type HandlerFunc func(name string, event client.EventRecord)
 
 // ResponderFunc is a function type to respond to registered serf queries
-type ResponderFunc func(name string, request []byte) ([]byte, error)
+type ResponderFunc func(name string, event client.QueryEventRecord) ([]byte, error)
 
 // Router implements a serf event/query router. It provides for ease of
 // registering structured event/query names by using sub-routers. The names
@@ -106,17 +107,21 @@ func (r *Router) findHandlerFunc(name string) interface{} {
 	return nil
 }
 
-func (r *Router) handleEvent(event map[string]interface{}) {
+func (r *Router) handleEvent(e client.EventRecord) {
 	r.Lock()
 	defer r.Unlock()
 	var (
 		name        string
-		payload     []byte
 		handlerFunc HandlerFunc
 		ok          bool
 	)
-	name = event["Name"].(string)
-	payload = event["Payload"].([]byte)
+
+	if me, ok := e.(client.MemberEventRecord); ok {
+		name = me.Event
+	} else {
+		ue := e.(client.UserEventRecord)
+		name = ue.Name
+	}
 
 	if f := r.findHandlerFunc(name); f == nil {
 		log.Infof("no handler for event: %q", name)
@@ -126,80 +131,81 @@ func (r *Router) handleEvent(event map[string]interface{}) {
 		return
 	}
 
-	if err := handlerFunc(name, payload); err != nil {
-		log.Infof("event handler failed. Error: %s", err)
-		// failure returned by handlers are not considered fatal
-		// TODO: handle panics inside event handlers as well
-		return
-	}
+	// event handlers are not expected to fail
+	// TODO: handle panics inside event handlers
+	handlerFunc(name, e)
 }
 
-func (r *Router) handleQuery(serfClient *client.RPCClient, query map[string]interface{}) {
+func (r *Router) handleQuery(serfClient *client.RPCClient, query client.QueryEventRecord) {
 	r.Lock()
 	defer r.Unlock()
 	var (
-		name        string
-		payload     []byte
 		response    []byte
 		handlerFunc ResponderFunc
 		ok          bool
 		err         error
 	)
-	name = query["Name"].(string)
-	payload = query["Payload"].([]byte)
 
-	if f := r.findHandlerFunc(name); f == nil {
-		log.Infof("no handler for query: %q", name)
+	if f := r.findHandlerFunc(query.Name); f == nil {
+		log.Infof("no handler for query: %q", query.Name)
 		return
 	} else if handlerFunc, ok = f.(ResponderFunc); !ok {
-		log.Infof("no handler for query: %q", name)
+		log.Infof("no handler for query: %q", query.Name)
 		return
 	}
 
-	if response, err = handlerFunc(name, payload); err != nil {
+	if response, err = handlerFunc(query.Name, query); err != nil {
 		log.Infof("query handler failed. Error: %s", err)
 		// failure returned by handlers are not considered fatal
 		// TODO: handle panics inside event handlers as well
 		return
 	}
 
-	if err := serfClient.Respond(query["ID"].(uint64), response); err != nil {
+	if err := serfClient.Respond(query.ID, response); err != nil {
 		log.Errorf("responding to query failed. Response body: %v, Error: %s", response, err)
 	}
 }
 
 func (r *Router) serve(serfClient *client.RPCClient) error {
 	var (
-		eventCh chan map[string]interface{}
+		eventCh chan client.EventRecord
 	)
 
 	// register for member events, user events and queries
-	eventCh = make(chan map[string]interface{})
-	if _, err := serfClient.Stream("member,user,query", eventCh); err != nil {
+	eventCh = make(chan client.EventRecord)
+	if _, err := serfClient.Stream("member-join,member-leave,member-failed,user,query", eventCh); err != nil {
 		return fmt.Errorf("failed to initialize event stream. Error: %s", err)
 	}
 
-	select {
-	case e := <-eventCh:
-		log.Infof("Event received: %+v", e)
-		if e["Event"] == "query" {
-			r.handleQuery(serfClient, e)
-		} else {
-			r.handleEvent(e)
+	for {
+		select {
+		case e, ok := <-eventCh:
+			if !ok {
+				return fmt.Errorf("event channel was unexpectedly closed")
+			}
+			log.Infof("Event received: %+v", e)
+			if _, ok := e.(client.QueryEventRecord); ok {
+				r.handleQuery(serfClient, e.(client.QueryEventRecord))
+			} else {
+				r.handleEvent(e)
+			}
 		}
 	}
-
-	return fmt.Errorf("Unexpected code path!")
 }
 
 // InitSerfAndServe initializes a serf client for agent running at specified
 // IP address and enters the event/query serving loop.
-// If an empty IP address the the client tries to reach the agent at 127.0.0.1 address
+// If an empty IP address the the client tries to reach the agent at
+// it's default address (usually 127.0.0.1:7373)
 func (r *Router) InitSerfAndServe(addr string) error {
 	var (
 		c   *client.RPCClient
 		err error
 	)
+
+	if addr == "" {
+		addr = agent.DefaultConfig().RPCAddr
+	}
 
 	if c, err = client.NewRPCClient(addr); err != nil {
 		return err

@@ -1,6 +1,6 @@
-.PHONY: checks check-format check-code deps unit-test
+.PHONY: checks check-format check-code deps unit-test test-app
 
-all: checks
+all: checks test-app
 
 deps:
 	go get github.com/tools/godep
@@ -20,4 +20,11 @@ check-code:
 	@echo "done checking code..."
 
 unit-test:
-	godep go test -v ./...
+	#godep go test ./...
+	go list ./... | xargs -n1 godep go test
+
+test-app:
+	godep go install ./test-app
+
+clean: deps
+	godep go clean -i -v ./...
