@@ -8,14 +8,14 @@ A golang lib for writing serf event generators and handlers.
 - eliminate some/most boilerplate code for getting a serf event handler logic ready in **Go**!
 
 ## Status
-Being  implementated
+Being  implemented - not ready for use 
 
 ## Requirements
 - serf agent should be running (`-event-handlers` flag shall not be specified for handler process written using this library)
 
 ## Writing an event handler
 
-The event routers supports regex based handler match with ability  for cretaing SubHandler, to inderit common path-prefix
+The event routers supports event name to handler match with ability for creating sub-router that allow inherit common path-prefix in their respective associated handlers.
 
 ```
 import serf-event
