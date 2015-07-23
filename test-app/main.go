@@ -9,6 +9,8 @@ import (
 func main() {
 	r := serfer.NewRouter()
 	r.AddMemberJoinHandler(handleJoin)
+	sr := r.NewSubRouter("events/")
+	sr.AddHandler("foo", handleFoo)
 
 	if err := r.InitSerfAndServe(""); err != nil {
 		log.Fatalf("Failed to initialize serfer. Error: %s", err)
@@ -16,5 +18,9 @@ func main() {
 }
 
 func handleJoin(name string, e client.EventRecord) {
-	log.Infof("Received member join: %q: %v", name, e)
+	log.Infof("Received event: %q: %v", name, e)
+}
+
+func handleFoo(name string, e client.EventRecord) {
+	log.Infof("Received event: %q: %v", name, e)
 }
